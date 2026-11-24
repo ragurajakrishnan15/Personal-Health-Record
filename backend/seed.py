@@ -19,10 +19,44 @@ import uuid
 
 import auth
 from ai_service import postprocess
-from database import (Base, MedicalDocument, Patient, PatientAccess, SessionLocal, UPLOAD_DIR, User, engine, init_db)
+from database import (Appointment, Base, Consultation, MedicalDocument, Medication, Patient, PatientAccess, Reminder,
+                      SessionLocal, UPLOAD_DIR, User, engine, init_db)
 from persistence import persist_extraction
 
 BLOOD = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"]
+
+
+def seed_schedule(db, pat, creator, rng):
+    """Sample appointments and reminders, dated relative to today so the 'Upcoming' and 'Active' tabs are never empty."""
+    today = dt.date.today()
+    day = lambda n: (today + dt.timedelta(days=n)).isoformat()
+    last = (db.query(Consultation).filter(Consultation.patient_id == pat.id)
+            .order_by(Consultation.consultation_date.desc()).first())
+    doctor = (last.doctor_name if last and last.doctor_name else None) or "Dr. Demo"
+    place = (last.hospital if last and last.hospital else None) or "City Medical Clinic"
+    appts = [
+        dict(title="Follow-up visit", doctor=doctor, location=place, appt_date=day(rng.randint(3, 14)),
+             appt_time=rng.choice(["09:30", "11:00", "14:15", "16:00"]), notes="Bring recent lab reports.", status="scheduled"),
+        dict(title="Blood tests (fasting)", doctor=None, location="Pathology lab", appt_date=day(rng.randint(20, 45)),
+             appt_time="08:00", notes="Fast for 10-12 hours; water is fine.", status="scheduled"),
+        dict(title="Routine check-up", doctor=doctor, location=place, appt_date=day(-rng.randint(25, 60)),
+             appt_time="10:00", notes="Blood pressure and weight checked.", status="done"),
+    ]
+    for a in appts:
+        db.add(Appointment(patient_id=pat.id, created_by=creator.id, **a))
+    meds = (db.query(Medication).filter(Medication.patient_id == pat.id, Medication.status.in_(("active", "lapsed")))
+            .order_by(Medication.start_date.desc()).limit(2).all())
+    rems = [dict(title="Check blood pressure at home", notes="Write the reading in your diary.", due_date=day(1),
+                 due_time="08:00", repeat="daily", medication_id=None),
+            dict(title="Book next eye / dental check", notes=None, due_date=day(rng.randint(5, 20)), due_time=None,
+                 repeat="none", medication_id=None)]
+    for m in meds[:1]:
+        rems.append(dict(title=f"Refill {m.name}", notes="Ask the pharmacy about a refill.", due_date=day(rng.randint(2, 10)),
+                         due_time="18:00", repeat="monthly", medication_id=m.id))
+    for r in rems:
+        db.add(Reminder(patient_id=pat.id, created_by=creator.id, status="active", **r))
+    db.commit()
+    return len(appts), len(rems)
 
 
 def main():
@@ -112,7 +146,9 @@ def main():
             db.refresh(doc)
             persist_extraction(db, doc, extracted)
             n_docs += 1
-        print(f"  {pat.id:2d}. {pat.name:24s} {len(recs)} documents  ({', '.join(p['conditions'])})")
+        n_appt, n_rem = seed_schedule(db, pat, users["owner"] if pat.id < 17 else users["outsider"], rng)
+        print(f"  {pat.id:2d}. {pat.name:24s} {len(recs)} documents, {n_appt} appointments, {n_rem} reminders"
+              f"  ({', '.join(p['conditions'])})")
     db.close()
     print(f"\nSeeded {len(profiles)} patients, {n_docs} documents into {engine.url}")
     print(f"Demo logins: owner@ / doctor@ / family@ / outsider@example.com. Password is in {creds} (git-ignored).")

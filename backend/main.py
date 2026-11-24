@@ -9,6 +9,7 @@ from fastapi import BackgroundTasks, FastAPI, Request, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -530,6 +531,27 @@ def get_health_summary(patient_id: int, db: Session = Depends(get_db)):
     }
 
 
+# Optional: serve the built frontend from this same app (single-container deploys such as Render).
+# Mounted last so every /api route above wins. Unknown paths fall back to index.html for client-side routing.
+_DIST = os.getenv("FRONTEND_DIST")
+if _DIST and os.path.isfile(os.path.join(_DIST, "index.html")):
+    class _SPAFiles(StaticFiles):
+        async def get_response(self, path, scope):
+            try:
+                resp = await super().get_response(path, scope)
+            except StarletteHTTPException as e:
+                if e.status_code != 404:
+                    raise
+                resp = None
+            if resp is None or resp.status_code == 404:
+                if scope.get("path", "").startswith("/api"):
+                    raise HTTPException(status_code=404)
+                return await super().get_response("index.html", scope)
+            return resp
+
+    app.mount("/", _SPAFiles(directory=_DIST, html=True), name="frontend")
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000)

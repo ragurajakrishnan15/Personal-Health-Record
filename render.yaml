@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: healthvault-demo
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: DEMO_PASSWORD
+        sync: false        # set in the Render dashboard
+      - key: DATABASE_URL
+        value: sqlite:///./health_records.db
+      - key: ALLOW_REGISTRATION
+        value: "false"

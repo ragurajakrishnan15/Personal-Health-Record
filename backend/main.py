@@ -544,9 +544,14 @@ if _DIST and os.path.isfile(os.path.join(_DIST, "index.html")):
                     raise
                 resp = None
             if resp is None or resp.status_code == 404:
-                if scope.get("path", "").startswith("/api"):
+                # a missing API route or missing hashed asset must be a real 404, never the app shell
+                if scope.get("path", "").startswith(("/api", "/assets")):
                     raise HTTPException(status_code=404)
-                return await super().get_response("index.html", scope)
+                resp = await super().get_response("index.html", scope)
+            # The app shell must be revalidated on every visit, otherwise a cached index.html points at
+            # asset files that no longer exist after a deploy (blank page). Hashed assets never change.
+            resp.headers["Cache-Control"] = ("public, max-age=31536000, immutable"
+                                             if scope.get("path", "").startswith("/assets/") else "no-cache")
             return resp
 
     app.mount("/", _SPAFiles(directory=_DIST, html=True), name="frontend")

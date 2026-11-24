@@ -84,4 +84,17 @@ export const getChatHistory = (patientId) =>
 export const clearChatHistory = (patientId) =>
   api.delete(`/patients/${patientId}/chat-history`);
 
+// ── Appointments & reminders ──────────────────────────
+export const getAppointments = (patientId, when = "all") =>
+  api.get(`/patients/${patientId}/appointments`, { params: { when } });
+export const getAppointmentSuggestions = (patientId) => api.get(`/patients/${patientId}/appointment-suggestions`);
+export const createAppointment = (patientId, data) => api.post(`/patients/${patientId}/appointments`, data);
+export const updateAppointment = (id, data) => api.put(`/appointments/${id}`, data);
+export const deleteAppointment = (id) => api.delete(`/appointments/${id}`);
+export const getReminders = (patientId, status = "active") =>
+  api.get(`/patients/${patientId}/reminders`, { params: { status } });
+export const createReminder = (patientId, data) => api.post(`/patients/${patientId}/reminders`, data);
+export const completeReminder = (id) => api.post(`/reminders/${id}/complete`);
+export const deleteReminder = (id) => api.delete(`/reminders/${id}`);
+
 export default api;

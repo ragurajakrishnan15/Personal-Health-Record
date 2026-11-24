@@ -21,8 +21,8 @@ from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
 import auth
-from database import (UPLOAD_DIR, Allergy, ChatMessage, Consultation, LabResult, MedicalDocument, Medication,
-                      Patient, PatientAccess, TimelineEvent, User, get_db)
+from database import (UPLOAD_DIR, Allergy, Appointment, ChatMessage, Consultation, LabResult, MedicalDocument, Medication,
+                      Patient, PatientAccess, Reminder, TimelineEvent, User, get_db)
 
 router = APIRouter()
 
@@ -69,7 +69,7 @@ README = """HealthVault export
 Generated: {when} (UTC)
 
 patient.json     everything stored about this person (profile, medications, lab results, allergies, visits,
-                 timeline, and the documents' extracted data with review status)
+                 timeline, appointments, reminders, and the documents' extracted data with review status)
 medications.csv  medications, one per row
 lab_results.csv  lab results, one per row ("is_abnormal" is blank when the report printed no reference range)
 documents/       the original files you uploaded
@@ -103,6 +103,7 @@ def export_patient(patient_id: int, request: Request, db: Session = Depends(get_
         z.writestr("patient.json", json.dumps({
             "patient": _row(p), "allergies": q(Allergy), "medications": meds, "lab_results": labs,
             "consultations": q(Consultation), "timeline": q(TimelineEvent),
+            "appointments": q(Appointment), "reminders": q(Reminder),
             "documents": [{**_row(d), "file_path": None,
                            "exported_file": f"documents/{d.id}-{_safe_name(d.filename)}"} for d in docs],
         }, indent=2, ensure_ascii=False))
@@ -141,7 +142,7 @@ def delete_patient(patient_id: int, body: DeleteIn, request: Request, db: Sessio
 
     paths = [d.file_path for d in docs if d.file_path]
     # children first: rows reference documents and the patient
-    for m in (ChatMessage, TimelineEvent, Consultation, LabResult, Medication, Allergy, MedicalDocument, PatientAccess):
+    for m in (ChatMessage, TimelineEvent, Appointment, Reminder, Consultation, LabResult, Medication, Allergy, MedicalDocument, PatientAccess):
         db.query(m).filter(m.patient_id == patient_id).delete()
     db.delete(p)
     db.commit()

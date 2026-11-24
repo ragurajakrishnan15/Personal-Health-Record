@@ -1,6 +1,8 @@
 # HealthVault — Personal & Family Health Records Platform
 
-AI-powered health record management demo for doctors.
+AI-powered personal and family health records: upload documents, get structured data, medication and lab trends, appointments, reminders and a grounded AI chat.
+
+See `HANDOFF.md` for the current state, design decisions and known limits.
 
 ## Quick Start
 
@@ -9,8 +11,8 @@ AI-powered health record management demo for doctors.
 ```bash
 cd backend
 pip install -r requirements.txt
-cp .env.example .env        # Add your GEMINI_API_KEY
-python main.py               # Runs on http://localhost:8000
+cp .env.example .env        # Add GEMINI_API_KEY / GROQ_API_KEY
+python -m uvicorn main:app --port 8000   # http://localhost:8000 (localhost only)
 ```
 
 ### Frontend (React + Vite)
@@ -30,7 +32,7 @@ health-records-demo/
 ├── backend/
 │   ├── main.py              # FastAPI app — all API routes
 │   ├── database.py          # SQLAlchemy models (SQLite)
-│   ├── ai_service.py        # Gemini AI extraction + chat (TODO)
+│   ├── ai_service.py        # Gemini/Groq extraction
 │   ├── requirements.txt
 │   └── .env.example
 ├── frontend/
@@ -48,35 +50,11 @@ health-records-demo/
 │   │   │   ├── Medications.jsx   # Medication tracker
 │   │   │   ├── Analytics.jsx     # Health trends & charts
 │   │   │   ├── Chat.jsx          # AI health assistant
-│   │   │   ├── Appointments.jsx  # Appointments (stub)
-│   │   │   ├── Reminders.jsx     # Reminders (stub)
+│   │   │   ├── Appointments.jsx  # Appointments + follow-up suggestions
+│   │   │   ├── Reminders.jsx     # Reminders (one-off or repeating)
 │   │   │   └── SettingsPage.jsx  # Settings (stub)
 │   │   └── services/
 │   │       └── api.js       # Axios API client
 │   └── vite.config.js
 └── uploads/                 # Uploaded documents
 ```
-
-## What's Built (Skeleton)
-
-- ✅ Full page routing (10 pages)
-- ✅ Sidebar navigation with active states
-- ✅ FastAPI backend with all CRUD endpoints
-- ✅ SQLAlchemy models for all entities
-- ✅ Document upload endpoint with AI extraction hook
-- ✅ Chat endpoint with RAG hook
-- ✅ API service layer on frontend
-- ✅ Upload page with file picker + extraction result display
-- ✅ Chat page with message UI + suggested questions
-
-## What to Build Next (Claude Code)
-
-1. **AI Extraction** (`ai_service.py`) — Wire up Gemini vision API to extract structured data from medical documents
-2. **AI Chat** (`ai_service.py`) — RAG pipeline: gather patient context → Gemini → grounded response
-3. **Dashboard** — Fetch real health summary, wire up stat cards
-4. **Records** — Document validation UI (side-by-side original + extracted)
-5. **Analytics** — Chart library (Recharts/Chart.js) for lab parameter trends
-6. **Medications** — Auto-populate from extraction, status management
-7. **Family Management** — Add patient form, role assignment
-8. **Reminders** — Medication schedule + adherence tracking
-9. **Demo Data** — Seed script with sample patient + records for doctor demo

@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import uuid
+from contextlib import asynccontextmanager
 from datetime import date, datetime
 from fastapi import BackgroundTasks, FastAPI, Request, UploadFile, File, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,13 +21,26 @@ import auth
 from auth_routes import router as auth_router
 from account_routes import router as account_router
 from patient_data import router as patient_data_router
+from schedule_routes import router as schedule_router
 from persistence import persist_extraction, clear_derived
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    task = asyncio.create_task(_recompute_loop()) if RECOMPUTE_HOURS > 0 else None
+    try:
+        yield
+    finally:
+        if task:
+            task.cancel()
+
+
 # Default deny: auth.guard runs on EVERY route (see auth.PUBLIC for the few open ones).
-app = FastAPI(title="Health Records Platform API", version="0.2.0", dependencies=[Depends(auth.guard)])
+app = FastAPI(title="Health Records Platform API", version="0.2.0", dependencies=[Depends(auth.guard)], lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(account_router)
 app.include_router(patient_data_router)
+app.include_router(schedule_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -81,20 +95,6 @@ async def _recompute_loop():
         except Exception:                      # never let the scheduler die
             log.exception("medication status recompute failed")
         await asyncio.sleep(RECOMPUTE_HOURS * 3600)
-
-
-@app.on_event("startup")
-async def startup():
-    init_db()
-    if RECOMPUTE_HOURS > 0:
-        app.state.recompute_task = asyncio.create_task(_recompute_loop())
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    task = getattr(app.state, "recompute_task", None)
-    if task:
-        task.cancel()
 
 
 # ══════════════════════════════════════════════════════════

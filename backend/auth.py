@@ -22,7 +22,7 @@ from collections import defaultdict, deque
 from fastapi import Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
-from database import AuditLog, MedicalDocument, Medication, PatientAccess, User, UserSession, get_db
+from database import Appointment, AuditLog, MedicalDocument, Reminder, Medication, PatientAccess, User, UserSession, get_db
 
 COOKIE_NAME = "phr_session"
 SESSION_IDLE_DAYS = int(os.getenv("SESSION_IDLE_DAYS", "7"))
@@ -206,6 +206,13 @@ def guard(request: Request, db: Session = Depends(get_db)) -> None:
         patient_id = med.patient_id if med else None
         if med is None:
             raise HTTPException(404, "Not found")
+    if patient_id is None:
+        for param, model in (("appt_id", Appointment), ("rem_id", Reminder)):
+            if param in params:
+                item = db.get(model, params[param])
+                if item is None:
+                    raise HTTPException(404, "Not found")
+                patient_id = item.patient_id
     if patient_id is not None:
         need = NEED_OVERRIDES.get((method, template)) or DEFAULT_NEED.get(method, "editor")
         request.state.role = authorize(db, request, user, int(patient_id), need)

@@ -14,3 +14,4 @@ uploads/*
 .chat_eval*
 .pytest_cache/
 .pytest_cache
+*.log

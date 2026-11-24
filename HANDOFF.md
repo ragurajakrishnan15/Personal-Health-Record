@@ -4,7 +4,7 @@ Written at the end of a long working session so the next session can start from 
 **Rule for the next session: verify anything below against the code before relying on it** (commands in section 9).
 Where something was *not* tested, this file says so.
 
-Project root: `D:\phr-extract\health-records-demo` (not a git repository - there is no history to fall back on).
+Project root: `D:\phr-extract\health-records-demo` (git repository since 2026-11-24; `git log` shows the history).
 Platform: Windows 11. Python 3.11 (system, no venv). Node + Vite.
 
 ---------------------------------------------------------------------------------------------------------------
@@ -34,18 +34,20 @@ AI: Gemini (google-genai) and Groq only. Decision made: **no NVIDIA / no local m
 | Auth + access control (roles, sessions, lockout, audit, CSRF/CORS/headers, sharing UI) | done | `auth.py`, `auth_routes.py`, `Login.jsx`, `Patients.jsx` |
 | Medication status rule fix (`lapsed`) + nightly recompute | done | `persistence.py`, `main.py` |
 | Email verification + password reset | done (API tested; UI not browser-tested) | `account_routes.py`, `mailer.py`, `AccountLinks.jsx`, `VerifyBanner.jsx` |
-| Patient export (ZIP) + permanent deletion | done (API tested live; UI not browser-tested) | `patient_data.py`, `Patients.jsx` |
+| Patient export (ZIP) + permanent deletion | done (API tested live; delete panel browser-checked, Export download not) | `patient_data.py`, `Patients.jsx` |
+| Appointments + reminders (manual, follow-up suggestions from documents, repeating reminders, medication link) | done, browser-checked | `schedule_routes.py`, `Appointments.jsx`, `Reminders.jsx`, `lib/dates.js` |
 
-**Tests: 74 passing** (`backend/tests/`: `test_pipeline.py`, `test_auth.py`, `test_account.py`, `test_patient_data.py`).
+**Tests: 106 passing** (`backend/tests/`: `test_pipeline.py`, `test_auth.py`, `test_account.py`, `test_patient_data.py`, `test_schedule.py`).
 Frontend build passes (`npx vite build`). Several security tests were "mutation checked": the protection was removed on
 purpose and tests were confirmed to fail, then the code restored.
 
-### Not tested in a real browser (only API/tests/build)
-These were verified by tests and HTTP calls, but nobody has clicked through them yet:
-- Forgot-password form on the sign-in page, the `/reset-password` page, the `/verify-email` page, the verification banner.
-- Export / Delete buttons and the delete panel on the Family page.
-- The "To confirm" (lapsed) tab on the Medications page.
-Earlier UI work (login, role-aware UI, sharing panel, charts, chat) *was* checked in the browser.
+### Browser checks (2026-11-24)
+Clicked through and working: forgot-password form (same neutral reply for unknown emails), `/reset-password` and
+`/verify-email` (good and bad links; links are single-use), the verification banner (resend throttle, confirm flow),
+the delete panel (opened, not confirmed), the Medications "To confirm" tab, Appointments and Reminders (add, done,
+history, two-step delete, follow-up suggestion accept, repeating reminder advances).
+**Still not clicked:** the Export button (it downloads a ZIP; the API is covered by tests) and the Still taking / Stop
+buttons on the "To confirm" tab. Viewer/editor views of the new pages were covered by API tests, not by eye.
 
 ## 3. How to run it
 
@@ -59,7 +61,7 @@ Frontend (from `frontend/`), port 5173 (proxies `/api` -> 8000):
 ```
 npx vite
 ```
-Tests (from `backend/`):  `python -m pytest tests -q`   (pytest is not listed in `requirements.txt`; it is installed locally)
+Tests (from `backend/`):  `python -m pytest tests -q`   (pytest and httpx are in `requirements.txt`)
 Build check (from `frontend/`):  `npx vite build`
 
 At the time of writing, **both servers were still running** (started by me). Stop only those two processes
@@ -163,21 +165,20 @@ Security / privacy
 - HIPAA / India DPDP / GDPR need a legal review; this is a technical foundation, not a certification.
 
 Product
-- Appointments, Reminders and Settings pages exist in the frontend as small stub pages (about 26 lines each); there are no backend models for appointments or reminders.
+- Settings is still a stub page. Reminders are shown in the app only: nothing is pushed to a phone or emailed, and there is no background scheduler for them.
+- Appointments/reminders: no editing of an existing item (delete and re-add), no attaching records to an appointment, no way to dismiss a follow-up suggestion without adding it.
 - No side-by-side review editor (reviewing is verify/reject only).
 - Real-world robustness untested (see section 5).
-- No Docker / Postgres / deploy setup / CI. `requirements.txt` does not include pytest.
+- No Docker / Postgres / deploy setup / CI. `requirements.txt` now lists pytest and httpx.
 
 Housekeeping
-- Not a git repo. Consider `git init` and a first commit before further changes.
-- `main.py` still uses deprecated `@app.on_event` (works; shows warnings).
 
 ## 8. Suggested next steps (none started; the user decides)
 
 1. Browser-test the screens listed in section 2 ("Not tested in a real browser") and fix anything visual.
 2. Account deletion + email change; time-limited doctor share links; two-factor sign-in; audit-log screen for owners.
 3. Move to a no-training AI tier or a local model; try real (user-provided, consented) documents.
-4. Appointments/reminders (follow-up dates are already extracted: `upcoming_followups` exists in health-summary).
+4. Reminder delivery (email / push) and appointment editing; dashboard card for today's reminders.
 5. Side-by-side review editor.
 6. Deployment: HTTPS, Postgres + Alembic, Docker, shared rate limiter, encrypted storage, backups with retention.
 
@@ -187,13 +188,13 @@ An unexplained message "-+" arrived mid-session earlier and was never answered/c
 
 ```
 cd D:\phr-extract\health-records-demo\backend
-python -m pytest tests -q                  # expect: 74 passed
+python -m pytest tests -q                  # expect: 106 passed
 cd ..\frontend && npx vite build           # expect: built
 netstat -ano | findstr ":8000 :5173"       # are the servers still up?
 curl http://localhost:8000/api/health      # {"status":"ok"}
 ```
 Then confirm file layout: `backend/` has `account_routes.py auth.py auth_routes.py chat_context.py chat_service.py
-database.py mailer.py main.py manage.py patient_data.py persistence.py seed.py evaluate.py chat_eval.py ai_service.py`.
+database.py mailer.py main.py manage.py patient_data.py persistence.py schedule_routes.py seed.py evaluate.py chat_eval.py ai_service.py`.
 If a count or file differs from this document, trust the code, and update this file.
 
 ## 10. Working tips for the assistant (learned the hard way)

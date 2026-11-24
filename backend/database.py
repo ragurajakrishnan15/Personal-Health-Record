@@ -149,6 +149,38 @@ class TimelineEvent(Base):
     patient = relationship("Patient", back_populates="timeline_events")
 
 
+# ── Appointments & reminders ──────────────────────────────
+class Appointment(Base):
+    __tablename__ = "appointments"
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    consultation_id = Column(Integer, ForeignKey("consultations.id"), nullable=True)   # set when created from an extracted follow-up
+    title = Column(String, nullable=False)
+    doctor = Column(String)
+    location = Column(String)
+    appt_date = Column(String, nullable=False)        # YYYY-MM-DD
+    appt_time = Column(String)                        # HH:MM, optional
+    notes = Column(Text)
+    status = Column(String, default="scheduled")      # scheduled | done | cancelled
+    created_by = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class Reminder(Base):
+    __tablename__ = "reminders"
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    medication_id = Column(Integer, ForeignKey("medications.id"), nullable=True)
+    title = Column(String, nullable=False)
+    notes = Column(Text)
+    due_date = Column(String, nullable=False)         # YYYY-MM-DD
+    due_time = Column(String)                         # HH:MM, optional
+    repeat = Column(String, default="none")           # none | daily | weekly | monthly
+    status = Column(String, default="active")         # active | done
+    created_by = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
 # ── Chat ──────────────────────────────────────────────────
 class ChatMessage(Base):
     __tablename__ = "chat_messages"

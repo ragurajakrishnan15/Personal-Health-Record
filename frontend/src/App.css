@@ -583,15 +583,9 @@ body {
   .filter-bar > * { flex: 1 1 100%; }
   .input { min-width: 0; }
   /* wide tables scroll sideways instead of stretching the page */
-  .table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
   .timeline li { flex-direction: column; gap: 2px; }
-  .record-card, .item-row, .med-card { flex-wrap: wrap; }
-  .med-actions, .row-actions { flex-direction: row; flex-wrap: wrap; align-items: center; }
   .kpi-row { gap: 16px; }
   .detail-head, .viz-head { flex-direction: column; align-items: stretch; }
-}
-@media (max-width: 420px) {
-  .stats-grid { grid-template-columns: 1fr; }
 }
 
 /* ── Phone best practices ─────────────────────────────── */
@@ -651,3 +645,58 @@ button, a, select, summary, [role="button"] { touch-action: manipulation; -webki
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* ── Phone layout, round 2 (from rendering every screen at 390px) ── */
+@media (max-width: 768px) {
+  /* stat tiles: two per row, compact, icon above number */
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 16px; }
+  .stat-card { padding: 12px; gap: 6px; flex-direction: column; align-items: flex-start; }
+  .stat-value { font-size: 1.5rem; }
+
+  /* tables fill their card and scroll inside it when they are wider than the screen */
+  .card, .detail-panel { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table { width: 100%; font-size: 13px; }
+  .table th, .table td { padding: 8px 6px; }
+
+  /* tabs: one scrollable line, tall enough to tap */
+  .tab-bar { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab { flex: 0 0 auto; white-space: nowrap; min-height: 44px; padding: 8px 14px; }
+  .viz-controls { width: 100%; justify-content: space-between; }
+
+  /* appointment / reminder / medication rows: icon + text on one line, actions underneath */
+  .item-row, .med-card { flex-wrap: wrap; align-items: flex-start; }
+  .item-row > .item-main, .med-card > div:nth-child(2) { flex: 1 1 calc(100% - 44px); min-width: 0; }
+  .item-row > .med-actions, .med-card > .med-actions { flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; align-items: stretch; justify-content: flex-start; }
+  .item-row > .med-actions .btn, .med-card > .med-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .suggest-card .item-row > div { flex: 1 1 100%; }
+  .suggest-card .item-row > .btn { flex: 1 1 100%; justify-content: center; }
+  .row-actions { flex-wrap: wrap; }
+  .row-actions .btn { flex: 1 1 auto; justify-content: center; }
+
+  /* records list: icon + title block, date under the details */
+  .record-card { display: grid; grid-template-columns: 24px 1fr; column-gap: 10px; align-items: start; }
+  .record-card > .date { grid-column: 2; color: var(--text-muted); font-size: 13px; }
+  .record-card strong { overflow-wrap: anywhere; }
+
+  /* long single actions are full width */
+  .page > .btn-primary, .upload-zone + .btn-primary { width: 100%; justify-content: center; }
+  .upload-zone { padding: 28px 16px; }
+  .attention-list li { min-height: 44px; }
+  .page h2 { font-size: 1.35rem; }
+
+  /* sign-out lives in the menu with a real label */
+  .drawer-signout { display: flex; margin-top: auto; }
+}
+.drawer-signout { display: none; align-items: center; gap: 12px; padding: 16px 20px calc(16px + env(safe-area-inset-bottom));
+  background: none; border: 0; border-top: 1px solid rgba(255,255,255,.1); color: var(--sidebar-text); font: inherit; font-size: 1rem; cursor: pointer; width: 100%; }
+
+/* round 3 polish */
+@media (max-width: 768px) {
+  .med-actions .badge, .item-row .badge { align-self: center; flex: 0 0 auto; margin-left: 0; }
+  .page > p { margin-bottom: 12px; }
+  .attention-list .link-btn { min-height: 44px; display: inline-flex; align-items: center; }
+  .attention-list { gap: 0; }
+}
+
+@media (max-width: 768px) { .table td:last-child, .table th:last-child { white-space: nowrap; } }

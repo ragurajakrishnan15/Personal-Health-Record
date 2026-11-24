@@ -10,7 +10,9 @@ import {
   Bell,
   Settings,
   Upload,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 const links = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -26,6 +28,7 @@ const links = [
 ];
 
 export default function Sidebar({ open = false, onClose = () => {} }) {
+  const { logout } = useAuth();
   return (
     <>
     <div className={`sidebar-backdrop ${open ? "show" : ""}`} onClick={onClose} aria-hidden="true" />
@@ -49,6 +52,7 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
           </NavLink>
         ))}
       </nav>
+      <button type="button" className="drawer-signout" onClick={logout}><LogOut size={20} /> Sign out</button>
     </aside>
     </>
   );

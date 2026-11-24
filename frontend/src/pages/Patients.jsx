@@ -163,7 +163,8 @@ function DeletePanel({ patient, onClose, onDeleted, onExport }) {
         shared with. It cannot be undone. Text already sent to the AI provider for answers cannot be recalled from here.
       </p>
       <p><button type="button" className="btn btn-outline" onClick={onExport}><Download size={14} /> Download a copy first</button></p>
-      <label>Type <strong>{patient.name}</strong> to confirm
+      <label>
+        <span>Type <strong>{patient.name}</strong> to confirm</span>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
       </label>
       <label>Your password

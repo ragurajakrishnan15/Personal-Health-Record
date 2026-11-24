@@ -1,14 +1,15 @@
-import { LogOut, User } from "lucide-react";
+import { LogOut, Menu, User } from "lucide-react";
 import { usePatient } from "../context/PatientContext";
 import { useAuth } from "../context/AuthContext";
 
 const ROLE_LABEL = { owner: "Owner", editor: "Can edit", viewer: "View only" };
 
-export default function Header() {
+export default function Header({ onMenu = () => {} }) {
   const { patients, patient, select } = usePatient();
   const { user, logout } = useAuth();
   return (
     <header className="header">
+      <button className="menu-btn" onClick={onMenu} aria-label="Open menu"><Menu size={22} /></button>
       <h1 className="header-title">Personal & Family Health Records</h1>
       <div className="header-actions">
         {patients.length > 0 && (
@@ -22,7 +23,7 @@ export default function Header() {
           </label>
         )}
         <span className="header-user" title={user.email}>{user.name}</span>
-        <button className="btn btn-outline" onClick={logout} title="Sign out"><LogOut size={14} /> Sign out</button>
+        <button className="btn btn-outline" onClick={logout} title="Sign out"><LogOut size={14} /> <span className="signout-label">Sign out</span></button>
       </div>
     </header>
   );

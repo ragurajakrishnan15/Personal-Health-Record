@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
@@ -21,6 +22,7 @@ import "./App.css";
 /** Nothing but the sign-in page is rendered (or fetched) until there is a session. */
 function Gate() {
   const { user, loading } = useAuth();
+  const [navOpen, setNavOpen] = useState(false);   // mobile slide-out menu
   // one-time email links work whether or not you are signed in
   if (window.location.pathname === "/reset-password") return <ResetPassword />;
   if (window.location.pathname === "/verify-email") return <VerifyEmail />;
@@ -30,9 +32,9 @@ function Gate() {
     <PatientProvider>
       <BrowserRouter>
         <div className="app-layout">
-          <Sidebar />
+          <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
           <div className="main-area">
-            <Header />
+            <Header onMenu={() => setNavOpen(true)} />
             <VerifyBanner />
             <main className="content">
               <Routes>

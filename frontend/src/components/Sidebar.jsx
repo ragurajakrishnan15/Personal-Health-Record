@@ -25,9 +25,11 @@ const links = [
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onClose = () => {} }) {
   return (
-    <aside className="sidebar">
+    <>
+    <div className={`sidebar-backdrop ${open ? "show" : ""}`} onClick={onClose} aria-hidden="true" />
+    <aside className={`sidebar ${open ? "open" : ""}`}>
       <div className="sidebar-brand">
         <Activity size={28} />
         <span>HealthVault</span>
@@ -37,6 +39,7 @@ export default function Sidebar() {
           <NavLink
             key={to}
             to={to}
+            onClick={onClose}
             className={({ isActive }) =>
               `sidebar-link ${isActive ? "active" : ""}`
             }
@@ -47,5 +50,6 @@ export default function Sidebar() {
         ))}
       </nav>
     </aside>
+    </>
   );
 }

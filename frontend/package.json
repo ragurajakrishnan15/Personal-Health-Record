@@ -1,0 +1,24 @@
+{
+  "name": "health-records-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.5.2",
+    "vite": "^8.3.6"
+  },
+  "dependencies": {
+    "axios": "^1.21.1",
+    "lucide-react": "^1.78.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-is": "^19.3.1",
+    "react-router-dom": "^7.18.6",
+    "recharts": "^3.11.1"
+  }
+}

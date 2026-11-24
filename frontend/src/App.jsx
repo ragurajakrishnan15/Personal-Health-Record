@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
+import BottomNav from "./components/BottomNav";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
 import Records from "./pages/Records";
@@ -23,6 +24,14 @@ import "./App.css";
 function Gate() {
   const { user, loading } = useAuth();
   const [navOpen, setNavOpen] = useState(false);   // mobile slide-out menu
+  useEffect(() => {
+    // while the drawer is open: Escape closes it and the page behind it does not scroll
+    if (!navOpen) return;
+    const onKey = (e) => e.key === "Escape" && setNavOpen(false);
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+  }, [navOpen]);
   // one-time email links work whether or not you are signed in
   if (window.location.pathname === "/reset-password") return <ResetPassword />;
   if (window.location.pathname === "/verify-email") return <VerifyEmail />;
@@ -51,6 +60,7 @@ function Gate() {
               </Routes>
             </main>
           </div>
+          <BottomNav onMore={() => setNavOpen(true)} />
         </div>
       </BrowserRouter>
     </PatientProvider>

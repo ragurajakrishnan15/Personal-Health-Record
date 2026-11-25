@@ -5,8 +5,10 @@ import re
 
 from sqlalchemy.orm import Session
 
-from database import (Allergy, Consultation, LabResult, MedicalDocument, Medication, TimelineEvent)
+from database import (Allergy, Consultation, Expense, LabResult, MedicalDocument, Medication, TimelineEvent)
 
+BILL_CATEGORY = {"prescription": "medicine", "lab_report": "lab_test", "discharge_summary": "hospital",
+                 "consultation_note": "consultation"}
 CONSULT_CATEGORIES = {"prescription", "discharge_summary", "consultation_note"}
 
 
@@ -78,7 +80,7 @@ def recompute_statuses(db: Session, today: dt.date | None = None) -> dict:
 
 
 def clear_derived(db: Session, doc_id: int) -> None:
-    for model in (Medication, LabResult, Consultation, TimelineEvent):
+    for model in (Medication, LabResult, Consultation, TimelineEvent, Expense):
         db.query(model).filter(model.document_id == doc_id).delete()
 
 
@@ -151,6 +153,14 @@ def persist_extraction(db: Session, doc: MedicalDocument, extracted: dict) -> di
         if a.get("allergen") and a["allergen"].lower() not in existing:
             db.add(Allergy(patient_id=doc.patient_id, allergen=a["allergen"], reaction=a.get("reaction")))
             existing.add(a["allergen"].lower())
+
+    # Expense: only when the document printed a total in a currency we recognise
+    if extracted.get("bill_total") and extracted.get("bill_currency"):
+        db.add(Expense(
+            patient_id=doc.patient_id, document_id=doc.id, expense_date=date_iso,
+            description=f"Bill - {hospital or doctor or doc.filename}"[:200],
+            category=BILL_CATEGORY.get(category, "other"),
+            amount_minor=round(extracted["bill_total"] * 100), currency=extracted["bill_currency"]))
 
     # Timeline
     who = doctor or hospital or "unknown provider"

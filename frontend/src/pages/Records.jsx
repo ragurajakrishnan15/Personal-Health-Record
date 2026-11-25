@@ -6,6 +6,7 @@ import useApi from "../hooks/useApi";
 import NeedPatient from "../components/NeedPatient";
 import { usePatient } from "../context/PatientContext";
 import GenericTag, { InferredBanner } from "../components/GenericTag";
+import { money } from "../lib/money";
 
 const STATUS = {
   pending_review: { icon: <Clock size={16} className="text-warning" />, label: "Needs review" },
@@ -13,7 +14,7 @@ const STATUS = {
   corrected: { icon: <CheckCircle size={16} className="text-success" />, label: "Corrected" },
   rejected: { icon: <XCircle size={16} className="text-danger" />, label: "Rejected" },
 };
-const CATS = ["prescription", "lab_report", "discharge_summary", "consultation_note", "other"];
+const CATS = ["prescription", "lab_report", "discharge_summary", "consultation_note", "insurance_or_bill", "other"];
 const pretty = (s) => s.replace(/_/g, " ");
 
 function Detail({ doc, onChanged }) {
@@ -40,6 +41,7 @@ function Detail({ doc, onChanged }) {
         </p>
       )}
       {x.validation_issues?.length > 0 && <p className="text-warning">Check: {x.validation_issues.join("; ")}</p>}
+      {x.bill_total && <p><strong>Bill total:</strong> {money(x.bill_total, x.bill_currency)}</p>}
       <InferredBanner list={x.inferred_generics} />
       {x.diagnoses?.length > 0 && <p><strong>Diagnoses:</strong> {x.diagnoses.join("; ")}</p>}
       {x.medications?.length > 0 && (

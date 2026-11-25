@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
 import auth
-from database import (UPLOAD_DIR, Allergy, Appointment, ChatMessage, Consultation, LabResult, MedicalDocument, Medication,
+from database import (UPLOAD_DIR, Allergy, Appointment, ChatMessage, Consultation, Expense, LabResult, MedicalDocument, Medication,
                       Patient, PatientAccess, Reminder, TimelineEvent, User, get_db)
 
 router = APIRouter()
@@ -69,8 +69,9 @@ README = """HealthVault export
 Generated: {when} (UTC)
 
 patient.json     everything stored about this person (profile, medications, lab results, allergies, visits,
-                 timeline, appointments, reminders, and the documents' extracted data with review status)
+                 timeline, appointments, reminders, expenses, and the documents' extracted data with review status)
 medications.csv  medications, one per row
+expenses.csv     medical expenses, one per row (currencies are not converted)
 lab_results.csv  lab results, one per row ("is_abnormal" is blank when the report printed no reference range)
 documents/       the original files you uploaded
 my_chat.json     YOUR conversation with the assistant about this person (other people's conversations are not included)
@@ -92,6 +93,7 @@ def export_patient(patient_id: int, request: Request, db: Session = Depends(get_
     q = lambda m: [_row(r) for r in db.query(m).filter(m.patient_id == patient_id).order_by(m.id)]
     docs = db.query(MedicalDocument).filter(MedicalDocument.patient_id == patient_id).order_by(MedicalDocument.id).all()
     meds, labs = q(Medication), q(LabResult)
+    expenses = [{**e, "amount": f"{e['amount_minor'] / 100:.2f}"} for e in q(Expense)]
     chat = [{"role": m.role, "content": m.content, "sources": m.sources, "created_at": m.created_at.isoformat()}
             for m in db.query(ChatMessage).filter(ChatMessage.patient_id == patient_id, ChatMessage.user_id == user.id)
             .order_by(ChatMessage.created_at, ChatMessage.id)]
@@ -103,7 +105,7 @@ def export_patient(patient_id: int, request: Request, db: Session = Depends(get_
         z.writestr("patient.json", json.dumps({
             "patient": _row(p), "allergies": q(Allergy), "medications": meds, "lab_results": labs,
             "consultations": q(Consultation), "timeline": q(TimelineEvent),
-            "appointments": q(Appointment), "reminders": q(Reminder),
+            "appointments": q(Appointment), "reminders": q(Reminder), "expenses": expenses,
             "documents": [{**_row(d), "file_path": None,
                            "exported_file": f"documents/{d.id}-{_safe_name(d.filename)}"} for d in docs],
         }, indent=2, ensure_ascii=False))
@@ -112,6 +114,7 @@ def export_patient(patient_id: int, request: Request, db: Session = Depends(get_
                                                   "prescribing_doctor", "status", "confidence"]))
         z.writestr("lab_results.csv", _csv(labs, ["report_date", "test_name", "test_value", "unit", "reference_range",
                                                   "is_abnormal", "lab_name", "specimen_type", "confidence"]))
+        z.writestr("expenses.csv", _csv(expenses, ["expense_date", "description", "category", "amount", "currency"]))
         z.writestr("my_chat.json", json.dumps(chat, indent=2, ensure_ascii=False))
         for d in docs:
             if d.file_path and _inside_uploads(d.file_path) and os.path.isfile(d.file_path):
@@ -142,7 +145,7 @@ def delete_patient(patient_id: int, body: DeleteIn, request: Request, db: Sessio
 
     paths = [d.file_path for d in docs if d.file_path]
     # children first: rows reference documents and the patient
-    for m in (ChatMessage, TimelineEvent, Appointment, Reminder, Consultation, LabResult, Medication, Allergy, MedicalDocument, PatientAccess):
+    for m in (ChatMessage, TimelineEvent, Appointment, Reminder, Expense, Consultation, LabResult, Medication, Allergy, MedicalDocument, PatientAccess):
         db.query(m).filter(m.patient_id == patient_id).delete()
     db.delete(p)
     db.commit()

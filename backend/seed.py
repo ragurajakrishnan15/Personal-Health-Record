@@ -19,7 +19,7 @@ import uuid
 
 import auth
 from ai_service import postprocess
-from database import (Appointment, Base, Consultation, MedicalDocument, Medication, Patient, PatientAccess, Reminder,
+from database import (Appointment, Base, Consultation, Expense, MedicalDocument, Medication, Patient, PatientAccess, Reminder,
                       SessionLocal, UPLOAD_DIR, User, engine, init_db)
 from persistence import persist_extraction
 
@@ -57,6 +57,19 @@ def seed_schedule(db, pat, creator, rng):
         db.add(Reminder(patient_id=pat.id, created_by=creator.id, status="active", **r))
     db.commit()
     return len(appts), len(rems)
+
+
+def seed_expenses(db, pat, creator, rng):
+    """Made-up sample costs so the Expenses page has something to total in the demo."""
+    india = (pat.phone or "").startswith("+91")
+    currency, scale = ("INR", 1) if india else ("USD", 0.05)
+    for days_ago, category, text, base in ((12, "consultation", "Doctor consultation", 800),
+                                           (40, "lab_test", "Blood tests", 1500),
+                                           (45, "medicine", "Pharmacy purchase", 1200)):
+        db.add(Expense(patient_id=pat.id, created_by=creator.id, category=category, description=text, currency=currency,
+                       expense_date=(dt.date.today() - dt.timedelta(days=days_ago)).isoformat(),
+                       amount_minor=round(base * scale * rng.uniform(0.8, 1.5)) * 100))
+    db.commit()
 
 
 def main():
@@ -147,6 +160,7 @@ def main():
             persist_extraction(db, doc, extracted)
             n_docs += 1
         n_appt, n_rem = seed_schedule(db, pat, users["owner"] if pat.id < 17 else users["outsider"], rng)
+        seed_expenses(db, pat, users["owner"] if pat.id < 17 else users["outsider"], rng)
         print(f"  {pat.id:2d}. {pat.name:24s} {len(recs)} documents, {n_appt} appointments, {n_rem} reminders"
               f"  ({', '.join(p['conditions'])})")
     db.close()

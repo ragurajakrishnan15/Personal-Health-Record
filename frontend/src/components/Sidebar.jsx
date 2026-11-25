@@ -11,6 +11,7 @@ import {
   Settings,
   Upload,
   LogOut,
+  Wallet,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -24,6 +25,7 @@ const links = [
   { to: "/chat", icon: MessageSquare, label: "AI Assistant" },
   { to: "/appointments", icon: Calendar, label: "Appointments" },
   { to: "/reminders", icon: Bell, label: "Reminders" },
+  { to: "/expenses", icon: Wallet, label: "Expenses" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 

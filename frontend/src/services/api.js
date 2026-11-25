@@ -97,4 +97,9 @@ export const createReminder = (patientId, data) => api.post(`/patients/${patient
 export const completeReminder = (id) => api.post(`/reminders/${id}/complete`);
 export const deleteReminder = (id) => api.delete(`/reminders/${id}`);
 
+// ── Expenses ──────────────────────────────────────────
+export const getExpenses = (patientId) => api.get(`/patients/${patientId}/expenses`);
+export const createExpense = (patientId, data) => api.post(`/patients/${patientId}/expenses`, data);
+export const deleteExpense = (id) => api.delete(`/expenses/${id}`);
+
 export default api;

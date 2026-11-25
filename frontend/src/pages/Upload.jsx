@@ -4,6 +4,7 @@ import { uploadDocument, getDocument, reprocessDocument, validateDocument } from
 import { usePatient } from "../context/PatientContext";
 import NeedPatient from "../components/NeedPatient";
 import GenericTag, { InferredBanner } from "../components/GenericTag";
+import { money } from "../lib/money";
 
 /**
  * Upload -> background AI extraction (polled) -> review summary -> verify / reject.
@@ -90,6 +91,7 @@ function UploadForm({ patient }) {
             <p><strong>Category:</strong> {x.category} &nbsp; <strong>Confidence:</strong> {Math.round((x.confidence || 0) * 100)}%</p>
             <p><strong>Doctor:</strong> {x.doctor || "—"} &nbsp; <strong>Facility:</strong> {x.hospital || "—"}</p>
             <p><strong>Date:</strong> {x.document_date || "—"} &nbsp; <strong>Follow-up:</strong> {x.follow_up_date || x.follow_up_text || "—"}</p>
+            {x.bill_total && <p><strong>Bill total:</strong> {money(x.bill_total, x.bill_currency)}</p>}
             <InferredBanner list={x.inferred_generics} />
             {x.diagnoses?.length > 0 && <p><strong>Diagnoses:</strong> {x.diagnoses.join("; ")}</p>}
 

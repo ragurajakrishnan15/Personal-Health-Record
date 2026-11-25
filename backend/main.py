@@ -23,6 +23,7 @@ from auth_routes import router as auth_router
 from account_routes import router as account_router
 from patient_data import router as patient_data_router
 from schedule_routes import router as schedule_router
+from expense_routes import router as expense_router, expense_rows, totals_by_currency
 from persistence import persist_extraction, clear_derived
 
 @asynccontextmanager
@@ -42,6 +43,7 @@ app.include_router(auth_router)
 app.include_router(account_router)
 app.include_router(patient_data_router)
 app.include_router(schedule_router)
+app.include_router(expense_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -519,6 +521,7 @@ def get_health_summary(patient_id: int, db: Session = Depends(get_db)):
     return {
         "patient": {"id": patient.id, "name": patient.name},
         "upcoming_followups": upcoming,
+        "expense_totals": totals_by_currency(expense_rows(db, patient_id)),
         "abnormal_labs": abnormal,
         "active_medications": active_meds,
         "total_documents": total_docs,

@@ -12,6 +12,7 @@ import Analytics from "./pages/Analytics";
 import Chat from "./pages/Chat";
 import Appointments from "./pages/Appointments";
 import Reminders from "./pages/Reminders";
+import Expenses from "./pages/Expenses";
 import SettingsPage from "./pages/SettingsPage";
 import Login from "./pages/Login";
 import { ResetPassword, VerifyEmail } from "./pages/AccountLinks";
@@ -56,6 +57,7 @@ function Gate() {
                 <Route path="/chat" element={<Chat />} />
                 <Route path="/appointments" element={<Appointments />} />
                 <Route path="/reminders" element={<Reminders />} />
+                <Route path="/expenses" element={<Expenses />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Routes>
             </main>

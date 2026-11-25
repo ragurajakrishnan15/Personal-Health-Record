@@ -181,6 +181,21 @@ class Reminder(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 
+# ── Expenses ──────────────────────────────────────────────
+class Expense(Base):
+    __tablename__ = "expenses"
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    document_id = Column(Integer, ForeignKey("medical_documents.id"), nullable=True)   # set when read from a bill
+    expense_date = Column(String, nullable=False)     # YYYY-MM-DD
+    description = Column(String, nullable=False)
+    category = Column(String, default="other")
+    amount_minor = Column(Integer, nullable=False)    # paise / cents: no floating-point money
+    currency = Column(String, nullable=False)         # ISO code; currencies are never added together
+    created_by = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
 # ── Chat ──────────────────────────────────────────────────
 class ChatMessage(Base):
     __tablename__ = "chat_messages"

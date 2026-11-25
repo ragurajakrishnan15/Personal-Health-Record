@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
-import { FileText, Pill, AlertTriangle, Calendar, Upload } from "lucide-react";
+import { FileText, Pill, AlertTriangle, Calendar, Upload, Wallet } from "lucide-react";
 import { getHealthSummary, getTimeline } from "../services/api";
 import useApi from "../hooks/useApi";
 import NeedPatient from "../components/NeedPatient";
 import { usePatient } from "../context/PatientContext";
+import { money } from "../lib/money";
 
 function Overview({ patient }) {
   const { canEdit } = usePatient();
@@ -38,6 +39,15 @@ function Overview({ patient }) {
           <Calendar size={24} />
           <div><span className="stat-value">{val(s?.upcoming_followups)}</span><span className="stat-label">Upcoming Follow-ups</span></div>
         </div>
+        <Link to="/expenses" className="stat-card stat-link">
+          <Wallet size={24} />
+          <div>
+            <span className="stat-value">
+              {val(s && (s.expense_totals.map((t) => money(t.total, t.currency)).join(" + ") || "—"))}
+            </span>
+            <span className="stat-label">Total Medical Expenses</span>
+          </div>
+        </Link>
       </div>
 
       <section className="card">

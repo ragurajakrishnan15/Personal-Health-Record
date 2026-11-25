@@ -5,7 +5,7 @@ Design:
   * Sessions: random 256-bit token in an HttpOnly, SameSite=Lax cookie; only its SHA-256 is stored server-side,
     so sessions can be revoked and a database leak can't be replayed.
   * Default deny: `guard` is a GLOBAL dependency. Every route needs a valid session unless listed in PUBLIC, and any
-    route with a patient_id / doc_id / med_id in its path is checked against the user's role on that patient.
+    route with a patient_id / doc_id / med_id / appt_id / rem_id / expense_id in its path is checked against the user's role on that patient.
   * No existence leaks: a patient you cannot access answers 404, exactly like one that does not exist.
   * Roles: viewer (read) < editor (upload, validate, change medications) < owner (manage who has access).
 """
@@ -22,7 +22,7 @@ from collections import defaultdict, deque
 from fastapi import Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
-from database import Appointment, AuditLog, MedicalDocument, Reminder, Medication, PatientAccess, User, UserSession, get_db
+from database import Appointment, AuditLog, Expense, MedicalDocument, Reminder, Medication, PatientAccess, User, UserSession, get_db
 
 COOKIE_NAME = "phr_session"
 SESSION_IDLE_DAYS = int(os.getenv("SESSION_IDLE_DAYS", "7"))
@@ -207,7 +207,7 @@ def guard(request: Request, db: Session = Depends(get_db)) -> None:
         if med is None:
             raise HTTPException(404, "Not found")
     if patient_id is None:
-        for param, model in (("appt_id", Appointment), ("rem_id", Reminder)):
+        for param, model in (("appt_id", Appointment), ("rem_id", Reminder), ("expense_id", Expense)):
             if param in params:
                 item = db.get(model, params[param])
                 if item is None:

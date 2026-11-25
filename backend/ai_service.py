@@ -23,6 +23,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 CALL_TIMEOUT = float(os.getenv("LLM_CALL_TIMEOUT", "90"))   # seconds per model call
+BILL_CURRENCIES = ("INR", "USD", "EUR", "GBP")
 INFERRED_GENERIC_CONF_CAP = 0.75   # a generic guessed from a brand name is never more certain than this
 GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
 # gemini | groq. Defaults to whichever key is present (Gemini first).
@@ -87,6 +88,9 @@ class ExtractionX(BaseModel):
     admission_date: str | None = None
     discharge_date: str | None = None
     procedures: list[str] = []
+    bill_total: float | None = Field(None, description="Final total charged for medical goods or services, as printed on a "
+                                                       "bill, invoice or receipt. null if no total is printed")
+    bill_currency: str | None = Field(None, description="ISO code of bill_total: INR, USD, EUR or GBP; null if unclear")
     confidence: float = Field(description="Overall 0-1 confidence in the extraction")
     notes: str | None = Field(None, description="Anything illegible, ambiguous or suspicious")
 
@@ -120,6 +124,8 @@ Rules:
     countries and a wrong guess can harm a patient, so when you are not certain of a brand's generic, return
     generic_name = null instead of guessing.
 15. Set confidence lower for blurry, cropped or handwritten text, and mention the problem in notes.
+16. `bill_total` is the final printed total of a bill, invoice or receipt (after discounts and tax). Never add up
+    line items yourself, and never use estimates, insurance cover limits or single line prices. Rs / ₹ = INR.
 """
 
 
@@ -636,13 +642,23 @@ def postprocess(raw: dict) -> dict:
         labs.append(l)
     out["lab_results"] = labs
 
+    # money: keep a total only when both the amount and the currency are usable
+    amount, currency = raw.get("bill_total"), str(raw.get("bill_currency") or "").strip().upper()
+    out["bill_total"] = out["bill_currency"] = None
+    if amount is not None:
+        if 0 < amount <= 100_000_000 and currency in BILL_CURRENCIES:
+            out["bill_total"], out["bill_currency"] = round(float(amount), 2), currency
+        else:
+            issues.append("bill total not recorded (unclear amount or currency)")
+
     # ── confidence ──
     conf = float(raw.get("confidence") or 0.0)
     row_confs = [float(x.get("confidence", 1)) for x in meds + labs]
     if row_confs:
         conf = min(conf, sum(row_confs) / len(row_confs) + 0.1)
     cat = raw.get("category", "other")
-    if cat == "other" or not (meds or labs or raw.get("diagnoses")):
+    is_bill = cat == "insurance_or_bill" and out["bill_total"] is not None
+    if cat == "other" or not (meds or labs or raw.get("diagnoses") or is_bill):
         conf *= 0.5
         issues.append("no clinical content found")
     if not out.get("document_date"):

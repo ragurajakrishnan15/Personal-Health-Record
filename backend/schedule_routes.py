@@ -198,7 +198,10 @@ def delete_appointment(appt_id: int, request: Request, db: Session = Depends(get
 
 def _reminder_out(db: Session, r: Reminder) -> dict:
     med = db.get(Medication, r.medication_id) if r.medication_id else None
-    return {**ReminderOut.model_validate(r).model_dump(), "medication_name": med.name if med else None}
+    if med is not None and med.patient_id != r.patient_id:        # never show another patient's record
+        med = None
+    out = ReminderOut.model_validate(r).model_dump()
+    return {**out, "medication_id": med.id if med else None, "medication_name": med.name if med else None}
 
 
 def _check_medication(db: Session, patient_id: int, med_id: int | None):

@@ -5,7 +5,7 @@ import re
 
 from sqlalchemy.orm import Session
 
-from database import (Allergy, Consultation, Expense, LabResult, MedicalDocument, Medication, TimelineEvent)
+from database import (Allergy, Appointment, Consultation, Expense, LabResult, Reminder, MedicalDocument, Medication, TimelineEvent)
 
 BILL_CATEGORY = {"prescription": "medicine", "lab_report": "lab_test", "discharge_summary": "hospital",
                  "consultation_note": "consultation"}
@@ -79,7 +79,18 @@ def recompute_statuses(db: Session, today: dt.date | None = None) -> dict:
     return changed
 
 
+def _unlink(db: Session, doc_id: int) -> None:
+    """Reminders and appointments outlive the rows they point at, so drop those links BEFORE the rows are deleted.
+    SQLite hands a deleted id to the next new row, which may belong to a different patient: a link left behind
+    would then show someone else's record."""
+    for owner, column, target in ((Reminder, Reminder.medication_id, Medication),
+                                  (Appointment, Appointment.consultation_id, Consultation)):
+        doomed = db.query(target.id).filter(target.document_id == doc_id)
+        db.query(owner).filter(column.in_(doomed.scalar_subquery())).update({column: None}, synchronize_session=False)
+
+
 def clear_derived(db: Session, doc_id: int) -> None:
+    _unlink(db, doc_id)
     for model in (Medication, LabResult, Consultation, TimelineEvent, Expense):
         db.query(model).filter(model.document_id == doc_id).delete()
 

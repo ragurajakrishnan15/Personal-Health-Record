@@ -288,9 +288,22 @@ def _add_missing_columns():
                     conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN {col.name} {ddl}{default}'))
 
 
+def _repair_links():
+    """Clear links that point at a missing row or at another patient's row (left by earlier versions).
+    Safe to run on every start. It cannot detect an old link whose id was reused within the same patient."""
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        for table, column, target in (("reminders", "medication_id", "medications"),
+                                      ("appointments", "consultation_id", "consultations")):
+            conn.execute(text(
+                f"UPDATE {table} SET {column} = NULL WHERE {column} IS NOT NULL AND NOT EXISTS "
+                f"(SELECT 1 FROM {target} t WHERE t.id = {table}.{column} AND t.patient_id = {table}.patient_id)"))
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
+    _repair_links()
 
 
 def get_db():

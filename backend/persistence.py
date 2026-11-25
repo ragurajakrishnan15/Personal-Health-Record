@@ -1,5 +1,8 @@
 """Turn a document's extracted JSON into relational rows (medications, labs, consultations,
-allergies, timeline). Idempotent per document: re-running replaces that document's rows."""
+allergies, timeline). Idempotent per document: re-running replaces that document's rows.
+
+Anything that depends on MORE than one document (which prescription replaced which, the allergy list) is worked out
+again from what is on file by refresh_patient, so upload order and rejection cannot leave it wrong."""
 import datetime as dt
 import re
 
@@ -99,21 +102,96 @@ def _doc_date(doc: MedicalDocument, extracted: dict) -> str:
     return extracted.get("document_date") or (doc.upload_date or dt.datetime.utcnow()).date().isoformat()
 
 
-def _supersede_older(db: Session, doc: MedicalDocument, key: str, date_iso: str) -> None:
-    """A newer prescription of the same drug replaces older active entries."""
-    rows = db.query(Medication).filter(Medication.patient_id == doc.patient_id, Medication.status.in_(("active", "lapsed")),
-                                       Medication.document_id != doc.id).all()
-    for r in rows:
-        if key not in {(r.generic_name or "").lower(), (r.name or "").lower()}:
+def _drug_key(m: Medication) -> str:
+    return (m.generic_name or m.name or "").lower()
+
+
+def resolve_supersession(db: Session, patient_id: int, today: dt.date | None = None) -> None:
+    """A prescription is "superseded" only while a newer document on file lists the same drug. Worked out from the
+    rows that exist now: it does not depend on upload order, and removing the newer one brings the older one back.
+    Medicines a person stopped (discontinued) are never touched."""
+    today = today or dt.date.today()
+    rows = db.query(Medication).filter(Medication.patient_id == patient_id).all()
+    age = lambda m: (m.start_date or "", m.document_id or 0)       # same date: the later upload counts as newer
+    by_key: dict[str, list] = {}
+    for m in rows:
+        by_key.setdefault(_drug_key(m), []).append((age(m), m.document_id))
+    for m in rows:
+        if m.status == "discontinued":
             continue
-        other = db.get(MedicalDocument, r.document_id) if r.document_id else None
-        other_date = (other.document_date if other else None) or ""
-        if other_date <= date_iso:
-            r.status = "superseded"
+        replaced = any(other_age > age(m) and other_doc != m.document_id
+                       for name in {(m.generic_name or "").lower(), (m.name or "").lower()} - {""}
+                       for other_age, other_doc in by_key.get(name, []))
+        # a manual row that is not discontinued was marked "Still taking" by a person
+        own = "active" if m.status_manual else status_for(m.start_date, m.end_date, today)
+        if replaced:
+            if own in ("active", "lapsed"):                        # a finished short course stays "completed"
+                m.status = "superseded"
+        elif m.status == "superseded":
+            m.status = own
+
+
+def rebuild_allergies(db: Session, patient_id: int) -> None:
+    """The allergy list is exactly what the documents that have not been rejected say."""
+    found: dict[str, dict] = {}
+    docs = db.query(MedicalDocument).filter(MedicalDocument.patient_id == patient_id,
+                                            MedicalDocument.validation_status != "rejected").order_by(MedicalDocument.id)
+    for doc in docs:
+        for a in (doc.extracted_data or {}).get("allergies", []) or []:
+            name = a.get("allergen")
+            if not name:
+                continue
+            entry = found.setdefault(name.lower(), {"allergen": name, "reaction": None})
+            entry["reaction"] = entry["reaction"] or a.get("reaction")
+    db.query(Allergy).filter(Allergy.patient_id == patient_id).delete()
+    for entry in found.values():
+        db.add(Allergy(patient_id=patient_id, **entry))
+
+
+def refresh_patient(db: Session, patient_id: int) -> None:
+    """Recalculate everything that depends on more than one document. The caller commits."""
+    db.flush()                                 # the session does not autoflush: make pending changes visible first
+    resolve_supersession(db, patient_id)
+    rebuild_allergies(db, patient_id)
+
+
+def _remember(db: Session, doc: MedicalDocument) -> tuple[list[dict], list[int]]:
+    """What people did with this document's rows, noted before the rows are replaced."""
+    meds = []
+    for m in db.query(Medication).filter(Medication.document_id == doc.id).order_by(Medication.id):
+        reminders = [r.id for r in db.query(Reminder).filter(Reminder.medication_id == m.id,
+                                                             Reminder.patient_id == doc.patient_id)]
+        meds.append({"name": (m.name or "").lower(), "strength": m.strength, "key": _drug_key(m),
+                     "status": m.status, "manual": bool(m.status_manual), "reminders": reminders})
+    visits = db.query(Consultation.id).filter(Consultation.document_id == doc.id)
+    appointments = [a.id for a in db.query(Appointment).filter(
+        Appointment.consultation_id.in_(visits.scalar_subquery()), Appointment.patient_id == doc.patient_id)]
+    return meds, appointments
+
+
+def _match(old: list[dict], new: list[Medication]) -> list[tuple[dict, Medication]]:
+    """Pair old and rebuilt medicines: same name and strength first, then the same drug if only one is left.
+    No confident match means no pair, so a choice or reminder is never moved to a different medicine."""
+    pairs, free = [], list(new)
+    waiting = []
+    for o in old:
+        hit = next((n for n in free if (n.name or "").lower() == o["name"] and n.strength == o["strength"]), None)
+        if hit:
+            free.remove(hit)
+            pairs.append((o, hit))
+        else:
+            waiting.append(o)
+    for o in waiting:
+        hits = [n for n in free if _drug_key(n) == o["key"]]
+        if len(hits) == 1 and sum(w["key"] == o["key"] for w in waiting) == 1:
+            free.remove(hits[0])
+            pairs.append((o, hits[0]))
+    return pairs
 
 
 def persist_extraction(db: Session, doc: MedicalDocument, extracted: dict) -> dict:
     """Create rows from `extracted`. Returns counts. Caller owns nothing: commits here."""
+    old_meds, old_appointments = _remember(db, doc)
     clear_derived(db, doc.id)
     today_d = dt.date.today()
     date_iso = _doc_date(doc, extracted)
@@ -121,19 +199,25 @@ def persist_extraction(db: Session, doc: MedicalDocument, extracted: dict) -> di
     doctor, hospital = extracted.get("doctor"), extracted.get("hospital")
 
     # Medications
-    n_med = 0
+    new_meds = []
     for m in extracted.get("medications", []):
-        key = (m.get("generic_name") or m.get("name") or "").lower()
         end = end_date(date_iso, m.get("duration"))
-        _supersede_older(db, doc, key, date_iso)
-        db.add(Medication(
+        new_meds.append(Medication(
             patient_id=doc.patient_id, document_id=doc.id, name=m["name"], generic_name=m.get("generic_name"),
             strength=m.get("strength"), dosage=m.get("dosage"), frequency=m.get("frequency"),
             route=m.get("route"), timing=m.get("timing"), instructions=m.get("instructions"),
             start_date=date_iso, end_date=end, prescribing_doctor=doctor,
             status=med_status(date_iso, m.get("duration"), today_d), confidence=m.get("confidence"),
             generic_inferred=bool(m.get("generic_inferred"))))
-        n_med += 1
+    db.add_all(new_meds)
+    db.flush()                                                   # ids are needed to restore reminder links
+    for old, new in _match(old_meds, new_meds):
+        if old["manual"]:                                        # Stop / Still taking survive a rebuild
+            new.status_manual = True
+            new.status = "discontinued" if old["status"] == "discontinued" else "active"
+        if old["reminders"]:
+            db.query(Reminder).filter(Reminder.id.in_(old["reminders"])).update({"medication_id": new.id})
+    n_med = len(new_meds)
 
     # Labs
     abnormal = []
@@ -152,18 +236,15 @@ def persist_extraction(db: Session, doc: MedicalDocument, extracted: dict) -> di
     # Consultation
     dx = extracted.get("diagnoses", [])
     if category in CONSULT_CATEGORIES and (dx or doctor):
-        db.add(Consultation(
+        visit = Consultation(
             patient_id=doc.patient_id, document_id=doc.id, doctor_name=doctor, hospital=hospital,
             consultation_date=extracted.get("discharge_date") or date_iso, diagnosis="; ".join(dx) or None,
             follow_up_date=extracted.get("follow_up_date"), notes=extracted.get("follow_up_text"),
-            confidence=extracted.get("confidence")))
-
-    # Allergies (dedupe per patient)
-    existing = {a.allergen.lower() for a in db.query(Allergy).filter(Allergy.patient_id == doc.patient_id)}
-    for a in extracted.get("allergies", []):
-        if a.get("allergen") and a["allergen"].lower() not in existing:
-            db.add(Allergy(patient_id=doc.patient_id, allergen=a["allergen"], reaction=a.get("reaction")))
-            existing.add(a["allergen"].lower())
+            confidence=extracted.get("confidence"))
+        db.add(visit)
+        db.flush()
+        if old_appointments:                                     # keep an accepted follow-up accepted
+            db.query(Appointment).filter(Appointment.id.in_(old_appointments)).update({"consultation_id": visit.id})
 
     # Expense: only when the document printed a total in a currency we recognise
     if extracted.get("bill_total") and extracted.get("bill_currency"):
@@ -189,5 +270,6 @@ def persist_extraction(db: Session, doc: MedicalDocument, extracted: dict) -> di
         title, desc = f"{category.replace('_', ' ').title()} - {who}", "; ".join(dx)
     db.add(TimelineEvent(patient_id=doc.patient_id, document_id=doc.id, event_date=date_iso,
                          event_type=category, title=title, description=desc or None))
+    refresh_patient(db, doc.patient_id)
     db.commit()
     return {"medications": n_med, "lab_results": n_lab, "diagnoses": len(dx)}

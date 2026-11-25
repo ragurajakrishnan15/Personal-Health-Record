@@ -10,6 +10,7 @@
     python manage.py deactivate --email a@example.com                   # blocks login and existing sessions
     python manage.py verify-user --email a@example.com                  # mark an email as confirmed without the link
     python manage.py recompute-meds                                     # re-apply the medication status rule now
+    python manage.py repair-records                                     # rebuild replaced medicines and allergy lists
 """
 import argparse
 import datetime as dt
@@ -41,6 +42,7 @@ def main():
             p.add_argument("--role", choices=auth.ROLES, required=True)
     sub.add_parser("list-users")
     sub.add_parser("recompute-meds")
+    sub.add_parser("repair-records")
     sub.add_parser("verify-user").add_argument("--email", required=True)
     a = ap.parse_args()
 
@@ -98,6 +100,13 @@ def main():
     elif a.cmd == "recompute-meds":
         from persistence import recompute_statuses
         print(recompute_statuses(db) or "no changes")
+    elif a.cmd == "repair-records":
+        from persistence import refresh_patient
+        ids = [pid for (pid,) in db.query(Patient.id)]
+        for pid in ids:
+            refresh_patient(db, pid)
+        db.commit()
+        print(f"Rebuilt replaced-medicine statuses and allergy lists for {len(ids)} patient(s)")
     elif a.cmd == "deactivate":
         u = user_by_email(db, a.email)
         u.is_active = False

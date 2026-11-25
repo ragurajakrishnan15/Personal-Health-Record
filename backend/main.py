@@ -24,7 +24,8 @@ from account_routes import router as account_router
 from patient_data import router as patient_data_router
 from schedule_routes import router as schedule_router
 from expense_routes import router as expense_router, expense_rows, totals_by_currency
-from persistence import persist_extraction, clear_derived
+from persistence import persist_extraction, clear_derived, refresh_patient
+from corrections import check_corrected
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -243,6 +244,13 @@ async def process_document(doc_id: int) -> None:
         extracted = await extract_from_document(doc.file_path)
         issues = extracted.get("validation_issues") or []
         failed = bool(issues) and str(issues[0]).startswith("extraction failed")
+        db.refresh(doc)                       # a person may have rejected it while it was being read
+        if failed and doc.extracted_data and (doc.extracted_data.get("medications") or doc.extracted_data.get("lab_results")
+                                              or doc.extracted_data.get("allergies")):
+            # re-reading failed: keep what was read before, so the records built from it still have their source
+            doc.processing_status, doc.processing_error = "failed", issues[0]
+            db.commit()
+            return
         doc.extracted_data = extracted
         doc.category = extracted.get("category", "other")
         doc.document_date = extracted.get("document_date")
@@ -254,7 +262,8 @@ async def process_document(doc_id: int) -> None:
         else:
             doc.processing_status, doc.processing_error = "done", None
             db.commit()
-            persist_extraction(db, doc, extracted)
+            if doc.validation_status != "rejected":
+                persist_extraction(db, doc, extracted)
     except Exception as e:  # never leave a document stuck in "processing"
         db.rollback()
         doc = db.get(MedicalDocument, doc_id)
@@ -352,17 +361,25 @@ def validate_document(doc_id: int, body: ValidationUpdate, request: Request, db:
     doc = db.query(MedicalDocument).filter(MedicalDocument.id == doc_id).first()
     if not doc:
         raise HTTPException(404, "Document not found")
+    corrected = None
+    if body.corrected_data and body.validation_status != "rejected":
+        corrected = check_corrected(body.corrected_data)       # raises 422 before anything is changed
+    was_rejected = doc.validation_status == "rejected"
     doc.validation_status = body.validation_status
     if body.validation_status == "rejected":
         clear_derived(db, doc.id)
+        refresh_patient(db, doc.patient_id)                    # older prescriptions come back, its allergies go
         db.commit()
-    elif body.corrected_data:
-        doc.extracted_data = body.corrected_data
+    elif corrected:
+        doc.extracted_data = corrected
         for k in ("category", "document_date", "hospital", "doctor"):
-            if body.corrected_data.get(k):
-                setattr(doc, k, body.corrected_data[k])
+            if corrected.get(k):
+                setattr(doc, k, corrected[k])
         db.commit()
-        persist_extraction(db, doc, body.corrected_data)
+        persist_extraction(db, doc, corrected)
+    elif was_rejected and doc.extracted_data and doc.processing_status != "processing":
+        db.commit()
+        persist_extraction(db, doc, doc.extracted_data)        # accepted after all: rebuild what rejection removed
     else:
         db.commit()
     auth.audit(db, request, request.state.user.id, doc.patient_id, f"document_{body.validation_status}", f"doc {doc_id}")

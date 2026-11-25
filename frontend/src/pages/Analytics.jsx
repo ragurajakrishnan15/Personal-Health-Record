@@ -198,7 +198,7 @@ function Dashboard({ patient }) {
 export default function Analytics() {
   return (
     <div className="page">
-      <h2>Health Analytics</h2>
+      <h2>Lab trends</h2>
       <NeedPatient>{(p) => <Dashboard key={p.id} patient={p} />}</NeedPatient>
     </div>
   );

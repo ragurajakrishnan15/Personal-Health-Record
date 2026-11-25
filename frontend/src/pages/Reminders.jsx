@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Bell, BellPlus, Check, Repeat, Trash2 } from "lucide-react";
 import { completeReminder, createReminder, deleteReminder, getMedications, getReminders } from "../services/api";
 import useApi from "../hooks/useApi";
+import useAddParam from "../hooks/useAddParam";
+import { useToast } from "../components/ui";
 import NeedPatient from "../components/NeedPatient";
 import { usePatient } from "../context/PatientContext";
 import { errMsg, prettyDate, todayLocal } from "../lib/dates";
@@ -79,10 +81,12 @@ function List({ patient }) {
   const [err, setErr] = useState("");
   const rems = useApi(() => getReminders(patient.id, tab), [patient.id, tab]);
   const today = todayLocal();
+  const toast = useToast();
+  useAddParam(() => setAdding(true));
 
-  const act = async (fn) => {
+  const act = async (fn, ok) => {
     setErr("");
-    try { await fn(); rems.reload(); } catch (ex) { setErr(errMsg(ex)); }
+    try { await fn(); toast(ok); rems.reload(); } catch (ex) { setErr(errMsg(ex)); }
   };
 
   return (
@@ -93,7 +97,7 @@ function List({ patient }) {
       {canEdit && !adding && (
         <p><button className="btn btn-primary" onClick={() => setAdding(true)}><BellPlus size={16} /> Add reminder</button></p>
       )}
-      {adding && <AddForm patientId={patient.id} onCancel={() => setAdding(false)} onDone={() => { setAdding(false); rems.reload(); }} />}
+      {adding && <AddForm patientId={patient.id} onCancel={() => setAdding(false)} onDone={() => { setAdding(false); rems.reload(); toast("Reminder saved"); }} />}
 
       <div className="tab-bar">
         {[["active", "Active"], ["done", "Done"]].map(([k, label]) => (
@@ -120,12 +124,12 @@ function List({ patient }) {
             {canEdit && (
               <div className="med-actions">
                 {r.status === "active" && (
-                  <button className="btn btn-outline" onClick={() => act(() => completeReminder(r.id))}>
+                  <button className="btn btn-outline" onClick={() => act(() => completeReminder(r.id), r.repeat === "none" ? "Reminder done" : "Done. Moved to the next date")}>
                     <Check size={14} /> {r.repeat === "none" ? "Done" : "Done, next"}
                   </button>
                 )}
                 {confirmId === r.id ? (
-                  <button className="btn btn-danger" onClick={() => act(() => deleteReminder(r.id))}>Confirm delete</button>
+                  <button className="btn btn-danger" onClick={() => act(() => deleteReminder(r.id), "Reminder deleted")}>Confirm delete</button>
                 ) : (
                   <button className="btn btn-outline btn-danger-outline" onClick={() => setConfirmId(r.id)}><Trash2 size={14} /> Delete</button>
                 )}

@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Skeleton, useToast } from "../components/ui";
+import { errMsg } from "../lib/dates";
 import { Pill } from "lucide-react";
 import { getMedications, updateMedicationStatus } from "../services/api";
 import useApi from "../hooks/useApi";
@@ -12,23 +15,39 @@ const BADGE = { lapsed: "not renewed" };
 
 function MedList({ patient }) {
   const { canEdit } = usePatient();
-  const [filter, setFilter] = useState("active");
-  const meds = useApi(() => getMedications(patient.id, filter === "all" ? undefined : filter), [patient.id, filter]);
+  const [params, setParams] = useSearchParams();
+  const filter = TABS.includes(params.get("tab")) ? params.get("tab") : "active";
+  const meds = useApi(() => getMedications(patient.id), [patient.id]);
+  const toast = useToast();
+  const [error, setError] = useState("");
+  const all = meds.data || [];
+  const inTab = (tab) => (tab === "all" ? all : all.filter((m) => m.status === tab));
+  const shown = inTab(filter);
 
   const setStatus = async (id, status) => {
-    await updateMedicationStatus(id, status);
-    meds.reload();
+    setError("");
+    try {
+      await updateMedicationStatus(id, status);
+      toast(status === "active" ? "Marked as active" : "Marked as stopped");
+      meds.reload();
+    } catch (e) {
+      setError(errMsg(e));
+    }
   };
 
   return (
     <>
-      <div className="tab-bar">
+      <div className="chips" role="group" aria-label="Show medicines">
         {TABS.map((f) => (
-          <button key={f} className={`tab ${filter === f ? "active" : ""}`} onClick={() => setFilter(f)}>
+          <button key={f} type="button" className={`chip ${filter === f ? "active" : ""}`} aria-pressed={filter === f}
+                  onClick={() => setParams(f === "active" ? {} : { tab: f }, { replace: true })}>
             {TAB_LABEL[f] || f.charAt(0).toUpperCase() + f.slice(1)}
+            {meds.data && <span className="chip-count">{inTab(f).length}</span>}
           </button>
         ))}
       </div>
+      {meds.loading && !meds.data && <Skeleton />}
+      {error && <p className="text-danger" role="alert">{error}</p>}
       {filter === "lapsed" && (
         <p className="text-muted">
           Long-term medicines whose last prescription has run out and no newer one is on file. They may still be taken
@@ -37,13 +56,13 @@ function MedList({ patient }) {
       )}
       {meds.error && <p className="text-danger">{meds.error}</p>}
       <div className="med-list">
-        {meds.data?.length === 0 && (
+        {meds.data && shown.length === 0 && (
           <p className="placeholder">No {filter === "all" ? "" : filter} medications. Upload a prescription to auto-extract them.</p>
         )}
-        {(meds.data || []).map((m) => (
+        {shown.map((m) => (
           <div key={m.id} className="card med-card">
-            <Pill size={20} />
-            <div>
+            <span className="row-icon"><Pill size={20} /></span>
+            <div className="item-main">
               <strong>{m.name}</strong>
               <GenericTag name={m.generic_name} brand={m.name} inferred={m.generic_inferred} />
               {m.strength && <span> — {m.strength}</span>}

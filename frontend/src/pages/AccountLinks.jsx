@@ -16,7 +16,7 @@ function Shell({ title, children }) {
   return (
     <div className="login-page">
       <div className="card login-card">
-        <div className="login-brand"><Activity size={28} /> HealthVault</div>
+        <div className="brand"><span className="brand-mark"><Activity size={20} /></span> HealthVault</div>
         <h2>{title}</h2>
         {children}
       </div>

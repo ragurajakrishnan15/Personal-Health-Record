@@ -1,61 +1,22 @@
-import { NavLink } from "react-router-dom";
-import {
-  LayoutDashboard,
-  Users,
-  FileText,
-  Pill,
-  Activity,
-  MessageSquare,
-  Calendar,
-  Bell,
-  Settings,
-  Upload,
-  LogOut,
-  Wallet,
-} from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { NavLink, Link } from "react-router-dom";
+import { Activity, Plus } from "lucide-react";
+import { usePatient } from "../context/PatientContext";
+import { PAGES } from "./nav";
 
-const links = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/patients", icon: Users, label: "Family" },
-  { to: "/records", icon: FileText, label: "Records" },
-  { to: "/upload", icon: Upload, label: "Upload" },
-  { to: "/medications", icon: Pill, label: "Medications" },
-  { to: "/analytics", icon: Activity, label: "Analytics" },
-  { to: "/chat", icon: MessageSquare, label: "AI Assistant" },
-  { to: "/appointments", icon: Calendar, label: "Appointments" },
-  { to: "/reminders", icon: Bell, label: "Reminders" },
-  { to: "/expenses", icon: Wallet, label: "Expenses" },
-  { to: "/settings", icon: Settings, label: "Settings" },
-];
-
-export default function Sidebar({ open = false, onClose = () => {} }) {
-  const { logout } = useAuth();
+/** Wide-screen navigation. Phones use BottomNav. */
+export default function Sidebar() {
+  const { canEdit } = usePatient();
   return (
-    <>
-    <div className={`sidebar-backdrop ${open ? "show" : ""}`} onClick={onClose} aria-hidden="true" />
-    <aside className={`sidebar ${open ? "open" : ""}`}>
-      <div className="sidebar-brand">
-        <Activity size={28} />
-        <span>HealthVault</span>
-      </div>
-      <nav>
-        {links.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            onClick={onClose}
-            className={({ isActive }) =>
-              `sidebar-link ${isActive ? "active" : ""}`
-            }
-          >
-            <Icon size={20} />
-            <span>{label}</span>
+    <aside className="sidebar">
+      <div className="sidebar-brand"><span className="brand-mark"><Activity size={20} /></span> HealthVault</div>
+      {canEdit && <Link to="/upload" className="btn btn-primary"><Plus size={18} /> Upload record</Link>}
+      <nav aria-label="Main">
+        {PAGES.map(({ to, icon: Icon, label }) => (
+          <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}>
+            <Icon size={19} aria-hidden="true" /> <span>{label}</span>
           </NavLink>
         ))}
       </nav>
-      <button type="button" className="drawer-signout" onClick={logout}><LogOut size={20} /> Sign out</button>
     </aside>
-    </>
   );
 }

@@ -4,6 +4,8 @@ import {
   createAppointment, deleteAppointment, getAppointments, getAppointmentSuggestions, updateAppointment,
 } from "../services/api";
 import useApi from "../hooks/useApi";
+import useAddParam from "../hooks/useAddParam";
+import { useToast } from "../components/ui";
 import NeedPatient from "../components/NeedPatient";
 import { usePatient } from "../context/PatientContext";
 import { errMsg, prettyDate, todayLocal } from "../lib/dates";
@@ -63,6 +65,8 @@ function List({ patient }) {
   const appts = useApi(() => getAppointments(patient.id, tab), [patient.id, tab]);
   const sugg = useApi(() => getAppointmentSuggestions(patient.id), [patient.id]);
   const today = todayLocal();
+  const toast = useToast();
+  useAddParam(() => setAdding({ initial: {} }));
 
   const refresh = () => { appts.reload(); sugg.reload(); };
   const act = async (fn) => {
@@ -81,7 +85,7 @@ function List({ patient }) {
           initial={adding.initial}
           consultationId={adding.consultationId}
           onCancel={() => setAdding(null)}
-          onDone={() => { setAdding(null); refresh(); }}
+          onDone={() => { setAdding(null); refresh(); toast("Appointment saved"); }}
         />
       )}
 

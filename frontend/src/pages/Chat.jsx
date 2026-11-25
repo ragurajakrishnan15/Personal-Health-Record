@@ -143,10 +143,16 @@ function ChatPanel({ patient }) {
           {loading && (
             <div className="chat-msg assistant">
               <Bot size={20} />
-              <div className="chat-bubble typing">Reading the records…</div>
+              <div className="chat-bubble typing"><span className="sr-only">Reading the records</span><i /><i /><i /></div>
             </div>
           )}
           <div ref={bottomRef} />
+        </div>
+
+        <div className="suggested-questions">
+          {suggestions.map((q) => (
+            <button key={q} className="btn btn-outline" disabled={loading} onClick={() => ask(q)}>{q}</button>
+          ))}
         </div>
 
         <div className="chat-input-bar">
@@ -156,12 +162,6 @@ function ChatPanel({ patient }) {
           <button className="btn btn-primary" onClick={() => ask(input)} disabled={loading || !input.trim()} aria-label="Send">
             <Send size={18} />
           </button>
-        </div>
-
-        <div className="suggested-questions">
-          {suggestions.map((q) => (
-            <button key={q} className="btn btn-outline" disabled={loading} onClick={() => ask(q)}>{q}</button>
-          ))}
         </div>
       </div>
     </div>

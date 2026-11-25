@@ -5,8 +5,8 @@ import { fmtDate, fmtMonth, formatRange } from "../lib/labs";
 
 /* Chart colours (match the --viz-* tokens in App.css). One series -> one hue; red is reserved for out-of-range. */
 export const VIZ = {
-  surface: "#fcfcfb", text: "#0b0b0b", text2: "#52514e", grid: "#e1e0d9",
-  series: "#2a78d6", critical: "#d03b3b", band: "rgba(11,11,11,0.07)",
+  surface: "var(--viz-surface)", text: "var(--viz-text)", text2: "var(--viz-text2)", grid: "var(--viz-grid)",
+  series: "var(--viz-series)", critical: "var(--viz-critical)", band: "var(--viz-band)",
 };
 
 /** Round axis bounds and ticks (1/2/5 x 10^n steps) so labels read as clean numbers. */
@@ -73,7 +73,7 @@ export default function TrendChart({ name, unit, points, range }) {
 
   return (
     <div role="img" aria-label={summary} className="trend-chart">
-      <ResponsiveContainer width="100%" height={320}>
+      <ResponsiveContainer width="100%" height={280}>
         <LineChart data={points} margin={{ top: 22, right: 20, bottom: 4, left: 4 }}>
           <CartesianGrid stroke={VIZ.grid} strokeWidth={1} vertical={false} />
           {band && (

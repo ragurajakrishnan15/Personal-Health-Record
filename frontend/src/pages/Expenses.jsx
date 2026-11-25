@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Plus, Receipt, Trash2, Wallet } from "lucide-react";
 import { createExpense, deleteExpense, getExpenses } from "../services/api";
 import useApi from "../hooks/useApi";
+import useAddParam from "../hooks/useAddParam";
+import { Skeleton, useToast } from "../components/ui";
 import NeedPatient from "../components/NeedPatient";
 import { usePatient } from "../context/PatientContext";
 import { errMsg, prettyDate, todayLocal } from "../lib/dates";
@@ -66,37 +68,87 @@ function AddForm({ patientId, defaultCurrency, onDone, onCancel }) {
   );
 }
 
+const PERIODS = [["all", "All time"], ["year", "This year"], ["month", "This month"]];
+
+/** Totals for one currency over whatever is currently shown. Whole cents, so sums stay exact. */
+function summarise(rows) {
+  const by = {};
+  for (const x of rows) {
+    const t = (by[x.currency] ||= { currency: x.currency, cents: 0, unverified: 0, count: 0, categories: {} });
+    const cents = Math.round(x.amount * 100);
+    t.cents += cents;
+    t.count += 1;
+    if (x.unverified) t.unverified += cents;
+    t.categories[x.category] = (t.categories[x.category] || 0) + cents;
+  }
+  return Object.values(by).sort((a, b) => a.currency.localeCompare(b.currency));
+}
+
+function Breakdown({ total, selected, onSelect }) {
+  const rows = Object.entries(total.categories).sort((a, b) => b[1] - a[1]);
+  const top = rows[0][1];
+  return (
+    <section className="card">
+      <h3>Where it went ({total.currency})</h3>
+      <p className="text-muted">Tap a bar to show only that category.</p>
+      {rows.map(([key, cents]) => (
+        <button key={key} type="button" className="spend-bar" aria-pressed={selected === key}
+                onClick={() => onSelect(selected === key ? "" : key)}>
+          <span>{CATEGORIES[key] || key}</span>
+          <span className="spend-track" aria-hidden="true"><span className="spend-fill" style={{ width: `${(cents / top) * 100}%` }} /></span>
+          <span>{money(cents / 100, total.currency)}</span>
+        </button>
+      ))}
+    </section>
+  );
+}
+
 function List({ patient }) {
   const { canEdit } = usePatient();
   const [adding, setAdding] = useState(false);
   const [confirmId, setConfirmId] = useState(null);
   const [err, setErr] = useState("");
   const expenses = useApi(() => getExpenses(patient.id), [patient.id]);
-  const totals = expenses.data?.totals || [];
+  const [period, setPeriod] = useState("all");
+  const [category, setCategory] = useState("");
+  const toast = useToast();
+  useAddParam(() => setAdding(true));
   const items = expenses.data?.items || [];
+  const prefix = period === "all" ? "" : todayLocal().slice(0, period === "year" ? 4 : 7);
+  const inPeriod = items.filter((x) => x.expense_date.startsWith(prefix));
+  const totals = summarise(inPeriod);
+  const shown = inPeriod.filter((x) => !category || x.category === category);
 
   const remove = async (id) => {
     setErr("");
-    try { await deleteExpense(id); expenses.reload(); } catch (ex) { setErr(errMsg(ex)); }
+    try { await deleteExpense(id); toast("Expense deleted"); expenses.reload(); } catch (ex) { setErr(errMsg(ex)); }
   };
 
   return (
     <>
+      <div className="chips" role="group" aria-label="Time period">
+        {PERIODS.map(([k, label]) => (
+          <button key={k} type="button" className={`chip ${period === k ? "active" : ""}`} aria-pressed={period === k}
+                  onClick={() => { setPeriod(k); setCategory(""); }}>{label}</button>
+        ))}
+      </div>
+      {expenses.loading && !expenses.data && <Skeleton />}
       {totals.length > 0 && (
         <div className="stats-grid">
           {totals.map((t) => (
             <div key={t.currency} className="stat-card">
               <Wallet size={24} />
               <div>
-                <span className="stat-value">{money(t.total, t.currency)}</span>
+                <span className="stat-value">{money(t.cents / 100, t.currency)}</span>
                 <span className="stat-label">Total ({t.currency}) · {t.count} {t.count === 1 ? "expense" : "expenses"}</span>
-                {t.unverified > 0 && <p className="text-warning">Includes {money(t.unverified, t.currency)} not yet reviewed</p>}
+                {t.unverified > 0 && <p className="text-warning">Includes {money(t.unverified / 100, t.currency)} not yet reviewed</p>}
               </div>
             </div>
           ))}
         </div>
       )}
       {totals.length > 1 && <p className="text-muted">Each currency is totalled separately; amounts are not converted.</p>}
+      {totals.map((t) => <Breakdown key={t.currency} total={t} selected={category} onSelect={setCategory} />)}
 
       {canEdit && !adding && (
         <p><button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={16} /> Add expense</button></p>
@@ -106,7 +158,7 @@ function List({ patient }) {
           patientId={patient.id}
           defaultCurrency={items[0]?.currency || (patient.phone?.startsWith("+91") ? "INR" : "USD")}
           onCancel={() => setAdding(false)}
-          onDone={() => { setAdding(false); expenses.reload(); }}
+          onDone={() => { setAdding(false); expenses.reload(); toast("Expense saved"); }}
         />
       )}
 
@@ -114,7 +166,8 @@ function List({ patient }) {
       {expenses.data && items.length === 0 && (
         <p className="placeholder">No expenses yet. Add one, or upload a medical bill.</p>
       )}
-      {items.map((x) => (
+      {expenses.data && items.length > 0 && shown.length === 0 && <p className="placeholder">No expenses in this view.</p>}
+      {shown.map((x) => (
         <div key={x.id} className="card item-row">
           <Receipt size={20} />
           <div className="item-main">

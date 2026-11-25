@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Activity, LogIn, UserPlus } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { forgotPassword } from "../services/api";
+import { RangeBar } from "../components/ui";
 
 const errorText = (err) => {
   const d = err.response?.data?.detail;
@@ -45,10 +46,19 @@ export default function Login() {
 
   return (
     <div className="login-page">
+      <div className="login-wrap">
+      <section className="login-intro">
+        <h1>Your family's health records, in one place.</h1>
+        <p>Keep prescriptions, lab reports and bills together, and share them only with people you choose.</p>
+        <div className="login-demo" aria-label="Example of how a lab result is shown">
+          <div className="result-head"><span>Example result</span><span className="result-value">14.1<small>g/dL</small></span></div>
+          <RangeBar value={14.1} range={{ lo: 12, hi: 16 }} />
+          <div className="rbar-foot"><span>In range</span><span>Range 12 – 16</span></div>
+        </div>
+      </section>
       <form className="card login-card" onSubmit={submit}>
-        <div className="login-brand"><Activity size={28} /> HealthVault</div>
+        <div className="brand"><span className="brand-mark"><Activity size={20} /></span> HealthVault</div>
         <h2>{signup ? "Create your account" : forgot ? "Reset your password" : "Sign in"}</h2>
-        <p className="text-muted">Personal and family health records, shared only with people you choose.</p>
 
         {signup && (
           <label>Your name
@@ -85,6 +95,7 @@ export default function Login() {
           {signup || forgot ? "Back to sign in" : "New here? Create an account"}
         </button>
       </form>
+      </div>
     </div>
   );
 }

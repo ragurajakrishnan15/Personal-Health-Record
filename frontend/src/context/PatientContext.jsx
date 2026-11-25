@@ -29,7 +29,7 @@ export function PatientProvider({ children }) {
         return data.find((p) => p.id === saved)?.id ?? data[0]?.id ?? null;
       });
     } catch {
-      setError("Cannot reach the backend. Start it with: python main.py (port 8000).");
+      setError("Cannot reach the server. Check your connection and refresh the page.");
     } finally {
       setLoading(false);
     }

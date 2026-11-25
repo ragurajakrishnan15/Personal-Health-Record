@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { UserPlus, Check, Share2, X, Download, Trash2 } from "lucide-react";
 import { changeAccess, createPatient, deletePatient, exportPatient, getAccess, grantAccess, revokeAccess } from "../services/api";
 import { usePatient } from "../context/PatientContext";
+import { Avatar } from "../components/ui";
 
 const BLOOD = ["", "A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
 const EMPTY = { name: "", age: "", gender: "", blood_group: "", phone: "", email: "" };
@@ -216,7 +217,13 @@ export default function Patients() {
         {patients.length === 0 && !showForm && <p className="placeholder">No family members yet. Add one to get started.</p>}
         {patients.map((p) => (
           <div key={p.id} className={`card patient-card ${p.id === patient?.id ? "selected" : ""}`}>
-            <h3>{p.name} <span className={`badge role-badge role-${p.role}`}>{ROLE_LABEL[p.role]}</span></h3>
+            <div className="patient-head">
+              <Avatar person={p} />
+              <div>
+                <h3>{p.name}</h3>
+                <span className={`badge role-${p.role}`} style={{ marginLeft: 0 }}>{ROLE_LABEL[p.role]}</span>
+              </div>
+            </div>
             <p>{p.age ? `${p.age} yrs` : "Age not set"} {p.gender ? `· ${p.gender}` : ""}</p>
             <p>{p.blood_group || "Blood group not set"}</p>
             {p.phone && <p className="text-muted">{p.phone}</p>}

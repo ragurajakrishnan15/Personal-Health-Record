@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Link, Routes, Route, useLocation } from "react-router-dom";
+import { ToastProvider } from "./components/ui";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import BottomNav from "./components/BottomNav";
@@ -21,18 +22,23 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PatientProvider } from "./context/PatientContext";
 import "./App.css";
 
+/** A new page starts at the top. */
+function ScrollTop() {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
+}
+
+const NotFound = () => (
+  <div className="page">
+    <h2>Page not found</h2>
+    <p className="placeholder">That page does not exist. <Link to="/">Go to the home page</Link>.</p>
+  </div>
+);
+
 /** Nothing but the sign-in page is rendered (or fetched) until there is a session. */
 function Gate() {
   const { user, loading } = useAuth();
-  const [navOpen, setNavOpen] = useState(false);   // mobile slide-out menu
-  useEffect(() => {
-    // while the drawer is open: Escape closes it and the page behind it does not scroll
-    if (!navOpen) return;
-    const onKey = (e) => e.key === "Escape" && setNavOpen(false);
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
-  }, [navOpen]);
   // one-time email links work whether or not you are signed in
   if (window.location.pathname === "/reset-password") return <ResetPassword />;
   if (window.location.pathname === "/verify-email") return <VerifyEmail />;
@@ -41,12 +47,14 @@ function Gate() {
   return (
     <PatientProvider>
       <BrowserRouter>
+        <ScrollTop />
         <div className="app-layout">
-          <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
+          <a className="skip-link" href="#main">Skip to content</a>
+          <Sidebar />
           <div className="main-area">
-            <Header onMenu={() => setNavOpen(true)} />
+            <Header />
             <VerifyBanner />
-            <main className="content">
+            <main className="content" id="main">
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/patients" element={<Patients />} />
@@ -59,10 +67,11 @@ function Gate() {
                 <Route path="/reminders" element={<Reminders />} />
                 <Route path="/expenses" element={<Expenses />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </main>
           </div>
-          <BottomNav onMore={() => setNavOpen(true)} />
+          <BottomNav />
         </div>
       </BrowserRouter>
     </PatientProvider>
@@ -72,7 +81,9 @@ function Gate() {
 export default function App() {
   return (
     <AuthProvider>
-      <Gate />
+      <ToastProvider>
+        <Gate />
+      </ToastProvider>
     </AuthProvider>
   );
 }

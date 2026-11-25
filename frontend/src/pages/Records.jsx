@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { FileText, CheckCircle, Clock, XCircle, Loader, ExternalLink } from "lucide-react";
+import { FileText, CheckCircle, ChevronDown, Clock, FlaskConical, Hospital, Pill, Receipt, Search, XCircle, Loader, ExternalLink } from "lucide-react";
+import { Skeleton } from "../components/ui";
+import { prettyDate } from "../lib/dates";
 import { getDocuments, validateDocument, reprocessDocument } from "../services/api";
 import useApi from "../hooks/useApi";
 import NeedPatient from "../components/NeedPatient";
@@ -15,7 +17,8 @@ const STATUS = {
   rejected: { icon: <XCircle size={16} className="text-danger" />, label: "Rejected" },
 };
 const CATS = ["prescription", "lab_report", "discharge_summary", "consultation_note", "insurance_or_bill", "other"];
-const pretty = (s) => s.replace(/_/g, " ");
+const pretty = (s) => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+const CAT_ICON = { prescription: Pill, lab_report: FlaskConical, discharge_summary: Hospital, insurance_or_bill: Receipt };
 
 function Detail({ doc, onChanged }) {
   const { canEdit } = usePatient();
@@ -108,43 +111,55 @@ function RecordList({ patient }) {
   return (
     <>
       <div className="filter-bar">
-        <select className="select" value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">All categories</option>
-          {CATS.map((c) => <option key={c} value={c}>{pretty(c)}</option>)}
-        </select>
-        <select className="select" value={status} onChange={(e) => setParams(e.target.value ? { status: e.target.value } : {})}>
-          <option value="">All statuses</option>
-          {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        <input className="input" placeholder="Search doctor, facility, file…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="search">
+          <Search size={18} />
+          <input className="input" type="search" aria-label="Search records" placeholder="Search doctor, place or file"
+                 value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
+      </div>
+      <div className="chips" role="group" aria-label="Type of record">
+        {["", ...CATS].map((c) => (
+          <button key={c || "all"} type="button" className={`chip ${category === c ? "active" : ""}`} aria-pressed={category === c}
+                  onClick={() => setCategory(c)}>{c ? pretty(c) : "All types"}</button>
+        ))}
+      </div>
+      <div className="chips" role="group" aria-label="Review status">
+        {[["", "Any status"], ...Object.entries(STATUS).map(([k, v]) => [k, v.label])].map(([k, label]) => (
+          <button key={k || "any"} type="button" className={`chip ${status === k ? "active" : ""}`} aria-pressed={status === k}
+                  onClick={() => setParams(k ? { status: k } : {}, { replace: true })}>{label}</button>
+        ))}
       </div>
       {docs.error && <p className="text-danger">{docs.error}</p>}
+      {docs.loading && !docs.data && <Skeleton rows={4} />}
+      {docs.data && <p className="text-muted" role="status">{shown.length} of {docs.data.length} records</p>}
       <div className="records-list">
         {docs.data && shown.length === 0 && (
           <p className="placeholder">
             {docs.data.length ? "No records match these filters." : "No records yet. Upload a medical document to get started."}
           </p>
         )}
-        {shown.map((doc) => (
-          <div key={doc.id} className="card">
-            <div className="record-card" onClick={() => setOpen(open === doc.id ? null : doc.id)} style={{ cursor: "pointer" }}>
-              <FileText size={20} />
-              <div>
-                <strong>{doc.filename}</strong> <span className="badge">{pretty(doc.category)}</span>{" "}
-                {doc.processing_status === "processing" ? (
-                  <span className="badge"><Loader size={12} className="spin" /> extracting</span>
-                ) : doc.processing_status === "failed" ? (
-                  <span className="badge badge-discontinued">failed</span>
-                ) : (
-                  <span title={STATUS[doc.validation_status]?.label}>{STATUS[doc.validation_status]?.icon}</span>
-                )}
-                <p className="text-muted">{[doc.doctor, doc.hospital].filter(Boolean).join(" · ")}</p>
-              </div>
-              <span className="date">{doc.document_date || String(doc.upload_date).slice(0, 10)}</span>
+        {shown.map((doc) => {
+          const Icon = CAT_ICON[doc.category] || FileText;
+          const state = doc.processing_status === "processing" ? "extracting" : doc.processing_status;
+          return (
+            <div key={doc.id} className="card">
+              <button type="button" className="record-card" aria-expanded={open === doc.id} onClick={() => setOpen(open === doc.id ? null : doc.id)}>
+                <span className="row-icon"><Icon size={20} /></span>
+                <span className="grow">
+                  <strong>{doc.hospital || doc.doctor || doc.filename}</strong>
+                  <span className="meta">{pretty(doc.category)}, {prettyDate(doc.document_date || String(doc.upload_date).slice(0, 10))}</span>
+                  <span className="meta">
+                    {state === "extracting" ? <><Loader size={13} className="spin" /> Being read</>
+                      : state === "failed" ? <span className="text-danger">Could not be read</span>
+                        : <>{STATUS[doc.validation_status]?.icon} {STATUS[doc.validation_status]?.label}</>}
+                  </span>
+                </span>
+                <ChevronDown size={20} className="chev" aria-hidden="true" />
+              </button>
+              {open === doc.id && <Detail doc={doc} onChanged={docs.reload} />}
             </div>
-            {open === doc.id && <Detail doc={doc} onChanged={docs.reload} />}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
